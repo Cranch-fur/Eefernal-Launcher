@@ -2,10 +2,8 @@
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
-using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
-
-using Timer = System.Windows.Forms.Timer;
 
 
 
@@ -16,8 +14,8 @@ namespace EefernalLauncher
 {
     public partial class Launcher : Form
     {
-        const string splashScreenFilePath = @"EefernalFog\SplashScreen.png";
-        const string logoFilePath         = @"EefernalFog\Logo.png";
+        const string splashScreenFilePath = @"EefernalFog\SplashScreen.mfx";
+        const string logoFilePath         = @"EefernalFog\Logo.mfx";
 
         const string startupTargetFilePath    = @"EefernalFog\StartupTarget.txt";
         const string startupArgumentsFilePath = @"EefernalFog\StartupArguments.txt";
@@ -37,10 +35,17 @@ namespace EefernalLauncher
         private void Exit(int millisecondsDelay)
         {
             if (millisecondsDelay > 0)
-                Thread.Sleep(millisecondsDelay);
-
-
-            Exit();
+            {
+                Task.Run(async () =>
+                {
+                    await Task.Delay(millisecondsDelay);
+                    Exit();
+                });
+            }
+            else
+            {
+                Exit();
+            }
         }
         private void Exit(string message, MessageBoxIcon messageType)
         {
@@ -127,25 +132,28 @@ namespace EefernalLauncher
             }
 
 
-            try
+            using (Process targetProcess = new Process())
             {
-                using (Process targetProcess = new Process())
+                targetProcess.StartInfo.FileName = startupTarget;
+                targetProcess.StartInfo.Arguments = startupArguments;
+
+
+                try
                 {
-                    targetProcess.StartInfo.FileName = startupTarget;
-                    targetProcess.StartInfo.Arguments = startupArguments;
-
-
                     targetProcess.Start();
                     if (targetProcess.HasExited)
                     {
                         Exit("Failed to start process", MessageBoxIcon.Error);
                     }
                 }
+                catch 
+                {
+                    Exit("Failed to start process", MessageBoxIcon.Error);
+                }
             }
-            catch { }
 
 
-            Exit(1000);
+            Exit(3500);
         }
     }
 }
