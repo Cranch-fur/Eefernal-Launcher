@@ -62,6 +62,17 @@ namespace EefernalLauncher
 
 
 
+
+
+        private void Launcher_AnimationTick(object sender, EventArgs e)
+        {
+            double newValue = this.Opacity + 0.025;
+            if (newValue <= 1.0)
+                this.Opacity = newValue;
+            else
+                startupAnimation.Tick -= Launcher_AnimationTick;
+
+        }
         private void startupProgressBar_AnimationTick(object sender, EventArgs e)
         {
             int newValue = startupProgressBar.Value + 1;
@@ -91,7 +102,8 @@ namespace EefernalLauncher
 
             if (File.Exists(splashScreenFilePath)) 
             { 
-                this.BackgroundImage = Image.FromFile(splashScreenFilePath);
+                Image backgroundImage = Image.FromFile(splashScreenFilePath);
+                this.BackgroundImage = backgroundImage;
             }
 
 
@@ -100,7 +112,8 @@ namespace EefernalLauncher
                 startupLogo.Parent = this;
                 startupLogo.BackColor = Color.Transparent;
 
-                startupLogo.Image = Image.FromFile(logoFilePath);
+                Image startupLogoImage = Image.FromFile(logoFilePath);
+                startupLogo.Image = startupLogoImage;
             }
         }
 
@@ -110,6 +123,7 @@ namespace EefernalLauncher
             startupAnimation = new Timer();
             startupAnimation.Interval = 1;
 
+            startupAnimation.Tick += Launcher_AnimationTick;
             startupAnimation.Tick += startupProgressBar_AnimationTick;
             startupAnimation.Start();
 
@@ -134,7 +148,8 @@ namespace EefernalLauncher
 
             using (Process targetProcess = new Process())
             {
-                targetProcess.StartInfo.FileName = startupTarget;
+                targetProcess.StartInfo.WorkingDirectory = Path.GetDirectoryName(startupTarget);
+                targetProcess.StartInfo.FileName = Path.GetFileName(startupTarget);
                 targetProcess.StartInfo.Arguments = startupArguments;
 
 
