@@ -22,6 +22,11 @@ namespace EefernalLauncher
 
 
         Timer startupAnimation = new Timer();
+        volatile bool startupFadeInComplete = false;
+        volatile bool startupProgressBarComplete = false;
+
+
+        volatile bool gameHasStarted = false;
 
 
 
@@ -31,21 +36,6 @@ namespace EefernalLauncher
         private void Exit()
         {
             Environment.Exit(0);
-        }
-        private void Exit(int millisecondsDelay)
-        {
-            if (millisecondsDelay > 0)
-            {
-                Task.Run(async () =>
-                {
-                    await Task.Delay(millisecondsDelay);
-                    Exit();
-                });
-            }
-            else
-            {
-                Exit();
-            }
         }
         private void Exit(string message, MessageBoxIcon messageType)
         {
@@ -70,8 +60,11 @@ namespace EefernalLauncher
             if (newValue <= 1.0)
                 this.Opacity = newValue;
             else
+            {
+                this.Opacity = 1.0;
+                startupFadeInComplete = true;
                 startupAnimation.Tick -= Launcher_AnimationTick;
-
+            }
         }
         private void startupProgressBar_AnimationTick(object sender, EventArgs e)
         {
@@ -79,7 +72,11 @@ namespace EefernalLauncher
             if (newValue <= startupProgressBar.Maximum)
                 startupProgressBar.Value = newValue;
             else
+            {
+                startupProgressBarComplete = true;
                 startupAnimation.Tick -= startupProgressBar_AnimationTick;
+            }
+                
         }
 
 
@@ -90,6 +87,20 @@ namespace EefernalLauncher
         public Launcher()
         {
             InitializeComponent();
+        }
+
+
+        private void backgroundWorkerExit_DoWork(object sender, System.ComponentModel.DoWorkEventArgs e)
+        {
+            while (startupFadeInComplete == false || startupProgressBarComplete == false || gameHasStarted == false)
+            {
+                System.Threading.Thread.Sleep(100);
+            }
+
+
+            this.TopMost = false;
+            System.Threading.Thread.Sleep(1350);
+            Exit();
         }
 
 
@@ -120,6 +131,9 @@ namespace EefernalLauncher
 
         private void Launcher_Shown(object sender, EventArgs e)
         {
+            backgroundWorkerExit.RunWorkerAsync();
+
+
             startupAnimation = new Timer();
             startupAnimation.Interval = 1;
 
@@ -168,7 +182,7 @@ namespace EefernalLauncher
             }
 
 
-            Exit(3500);
+            gameHasStarted = true;
         }
     }
 }

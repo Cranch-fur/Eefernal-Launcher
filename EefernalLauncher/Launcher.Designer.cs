@@ -29,6 +29,7 @@
         private void InitializeComponent()
         {
             this.startupLogo = new System.Windows.Forms.PictureBox();
+            this.backgroundWorkerExit = new System.ComponentModel.BackgroundWorker();
             this.startupProgressBar = new GradientProgressBar();
             ((System.ComponentModel.ISupportInitialize)(this.startupLogo)).BeginInit();
             this.SuspendLayout();
@@ -42,6 +43,10 @@
             this.startupLogo.SizeMode = System.Windows.Forms.PictureBoxSizeMode.Zoom;
             this.startupLogo.TabIndex = 1;
             this.startupLogo.TabStop = false;
+            // 
+            // backgroundWorkerExit
+            // 
+            this.backgroundWorkerExit.DoWork += new System.ComponentModel.DoWorkEventHandler(this.backgroundWorkerExit_DoWork);
             // 
             // startupProgressBar
             // 
@@ -71,6 +76,7 @@
             this.Opacity = 0D;
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "Eefernal Fog";
+            this.TopMost = true;
             this.Load += new System.EventHandler(this.Launcher_Load);
             this.Shown += new System.EventHandler(this.Launcher_Shown);
             ((System.ComponentModel.ISupportInitialize)(this.startupLogo)).EndInit();
@@ -82,6 +88,7 @@
 
         private GradientProgressBar startupProgressBar;
         private System.Windows.Forms.PictureBox startupLogo;
+        private System.ComponentModel.BackgroundWorker backgroundWorkerExit;
     }
 }
 
