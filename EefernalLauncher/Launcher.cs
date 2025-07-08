@@ -97,8 +97,6 @@ namespace EefernalLauncher
                 System.Threading.Thread.Sleep(100);
             }
 
-
-            this.TopMost = false;
             System.Threading.Thread.Sleep(1350);
             Exit();
         }
@@ -160,12 +158,12 @@ namespace EefernalLauncher
             }
 
 
+            this.TopMost = false; // Ensure that user will be able to interact with Windows security pop up.
             using (Process targetProcess = new Process())
             {
                 targetProcess.StartInfo.WorkingDirectory = Path.GetDirectoryName(startupTarget);
                 targetProcess.StartInfo.FileName = Path.GetFileName(startupTarget);
                 targetProcess.StartInfo.Arguments = startupArguments;
-
 
                 try
                 {
