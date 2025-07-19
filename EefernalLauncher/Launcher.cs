@@ -1,4 +1,5 @@
 ﻿using System;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
@@ -164,18 +165,23 @@ namespace EefernalLauncher
                 targetProcess.StartInfo.WorkingDirectory = Path.GetDirectoryName(startupTarget);
                 targetProcess.StartInfo.FileName = Path.GetFileName(startupTarget);
                 targetProcess.StartInfo.Arguments = startupArguments;
+                targetProcess.StartInfo.UseShellExecute = true;
 
                 try
                 {
                     targetProcess.Start();
                     if (targetProcess.HasExited)
                     {
-                        Exit("Failed to start process", MessageBoxIcon.Error);
+                        Exit("Failed to start process! Process has exited.", MessageBoxIcon.Error);
                     }
+                }
+                catch (Win32Exception win32Ex)
+                {
+                    Exit($"Failed to start process! WIN32 exception: {win32Ex.NativeErrorCode}", MessageBoxIcon.Error);
                 }
                 catch 
                 {
-                    Exit("Failed to start process", MessageBoxIcon.Error);
+                    Exit("Failed to start process! Process failed to start.", MessageBoxIcon.Error);
                 }
             }
 
