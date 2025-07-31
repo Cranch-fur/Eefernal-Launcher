@@ -40,22 +40,6 @@ namespace EefernalLauncher
 
 
 
-        [DllImport("shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-        static extern IntPtr ShellExecuteW
-        (
-            IntPtr hwnd,
-            string lpOperation,
-            string lpFile,
-            string lpParameters,
-            string lpDirectory,
-            int nShowCmd
-        );
-
-
-
-
-
-
         private void Exit()
         {
             Environment.Exit(0);
@@ -200,19 +184,6 @@ namespace EefernalLauncher
         }
 
 
-        async void StartProcessSH(string startupTarget, string startupArguments)
-        {
-            string executableName = Path.GetFileNameWithoutExtension(startupTarget);
-
-            ShellExecuteW(IntPtr.Zero, "open", startupTarget, startupArguments, Path.GetDirectoryName(startupTarget), 1 /*SW_SHOWNORMAL*/);
-            await Task.Delay(3000);
-
-            Process[] foundProcesses = Process.GetProcessesByName(executableName);
-            if (foundProcesses.Length == 0)
-                Exit($"Failed to start process! Process wasn't found running.", MessageBoxIcon.Error);
-        }
-
-
 
 
 
@@ -289,7 +260,7 @@ namespace EefernalLauncher
 
 
             this.TopMost = false; // Ensure that user will be able to interact with Windows security pop up.
-            StartProcessSH(startupTarget, startupArguments);
+            StartProcess(startupTarget, startupArguments);
             StartupData.gameStartAttempted = true;
         }
     }
