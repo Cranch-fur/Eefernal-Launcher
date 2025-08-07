@@ -29,7 +29,7 @@
         private void InitializeComponent()
         {
             this.startupLogo = new System.Windows.Forms.PictureBox();
-            this.backgroundWorkerExit = new System.ComponentModel.BackgroundWorker();
+            this.launcherTerminationWorker = new System.ComponentModel.BackgroundWorker();
             this.startupProgressBar = new GradientProgressBar();
             ((System.ComponentModel.ISupportInitialize)(this.startupLogo)).BeginInit();
             this.SuspendLayout();
@@ -44,9 +44,9 @@
             this.startupLogo.TabIndex = 1;
             this.startupLogo.TabStop = false;
             // 
-            // backgroundWorkerExit
+            // launcherTerminationWorker
             // 
-            this.backgroundWorkerExit.DoWork += new System.ComponentModel.DoWorkEventHandler(this.backgroundWorkerExit_DoWork);
+            this.launcherTerminationWorker.DoWork += new System.ComponentModel.DoWorkEventHandler(this.launcherTerminationWorker_DoWork);
             // 
             // startupProgressBar
             // 
@@ -54,7 +54,7 @@
             this.startupProgressBar.BorderThickness = 0;
             this.startupProgressBar.EndColor = System.Drawing.Color.PaleTurquoise;
             this.startupProgressBar.Location = new System.Drawing.Point(0, 440);
-            this.startupProgressBar.Maximum = 150;
+            this.startupProgressBar.Maximum = 1000;
             this.startupProgressBar.Name = "startupProgressBar";
             this.startupProgressBar.ShowBorder = false;
             this.startupProgressBar.Size = new System.Drawing.Size(800, 10);
@@ -88,7 +88,7 @@
 
         private GradientProgressBar startupProgressBar;
         private System.Windows.Forms.PictureBox startupLogo;
-        private System.ComponentModel.BackgroundWorker backgroundWorkerExit;
+        private System.ComponentModel.BackgroundWorker launcherTerminationWorker;
     }
 }
 

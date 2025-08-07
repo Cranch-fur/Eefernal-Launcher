@@ -1,34 +1,11 @@
-﻿// #define START_METHOD_DEFAULT
-// #define START_METHOD_CMD
-// #define START_METHOD_POWERSHELL
-#define START_METHOD_KERNEL
-
-
-
-
-
-
-using System;
-using System.Drawing;
+﻿using System;
 using System.IO;
-using System.Windows.Forms;
-
-
-#if START_METHOD_DEFAULT
-using System.Diagnostics;
-using System.ComponentModel;
-#endif
-
-#if START_METHOD_CMD || START_METHOD_POWERSHELL
-using System.Diagnostics;
-using System.Threading.Tasks;
-using System.ComponentModel;
-#endif
-
-#if START_METHOD_KERNEL
-using System.Runtime.InteropServices;
 using System.Text;
-#endif
+using System.Drawing;
+using System.Windows.Forms;
+using System.Runtime.InteropServices;
+
+using Thread = System.Threading.Thread;
 
 
 
@@ -39,78 +16,36 @@ namespace EefernalLauncher
 {
     public partial class Launcher : Form
     {
-#if START_METHOD_KERNEL
-        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-        private struct KERNEL_STARTUPINFO // https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/ns-processthreadsapi-startupinfow
+        public readonly static string launcherDirectory = AppDomain.CurrentDomain.BaseDirectory;
+
+
+        public static class GameStartData
         {
-            public uint cb;
-            public string lpReserved;
-            public string lpDesktop;
-            public string lpTitle;
-            public uint dwX;
-            public uint dwY;
-            public uint dwXSize;
-            public uint dwYSize;
-            public uint dwXCountChars;
-            public uint dwYCountChars;
-            public uint dwFillAttribute;
-            public uint dwFlags;
-            public short wShowWindow;
-            public short cbReserved2;
-            public IntPtr lpReserved2;
-            public IntPtr hStdInput;
-            public IntPtr hStdOutput;
-            public IntPtr hStdError;
+            public readonly static string splashScreenFilePath = Path.Combine(launcherDirectory, @"EefernalFog\SplashScreen.mfx");
+            public readonly static string logoFilePath = Path.Combine(launcherDirectory, @"EefernalFog\Logo.mfx");
+
+            public readonly static string startupTargetFilePath = Path.Combine(launcherDirectory, @"EefernalFog\StartupTarget.txt");
+            public readonly static string startupArgumentsFilePath = Path.Combine(launcherDirectory, @"EefernalFog\StartupArguments.txt");
         }
 
 
-        [StructLayout(LayoutKind.Sequential)]
-        private struct KERNEL_PROCESS_INFORMATION // https://learn.microsoft.com/ru-ru/windows/win32/api/processthreadsapi/ns-processthreadsapi-process_information
-        {
-            public IntPtr hProcess;
-            public IntPtr hThread;
-            public uint dwProcessId;
-            public uint dwThreadId;
-        }
-
-
-        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-        private static extern bool CreateProcessW // https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessw
-        (
-            string lpApplicationName,
-            StringBuilder lpCommandLine, // StringBuilder for mutable buffer.
-            IntPtr lpProcessAttributes,
-            IntPtr lpThreadAttributes,
-            bool bInheritHandles,
-            uint dwCreationFlags,
-            IntPtr lpEnvironment,
-            string lpCurrentDirectory,
-            [In] ref KERNEL_STARTUPINFO lpStartupInfo,
-            out KERNEL_PROCESS_INFORMATION lpProcessInformation
-        );
-#endif
-
-
-
-
-
-        public static class StartupData
-        {
-            public const string splashScreenFilePath = @"EefernalFog\SplashScreen.mfx";
-            public const string logoFilePath = @"EefernalFog\Logo.mfx";
-
-            public const string startupTargetFilePath = @"EefernalFog\StartupTarget.txt";
-            public const string startupArgumentsFilePath = @"EefernalFog\StartupArguments.txt";
-
-            public static volatile bool gameStartAttempted = false;
-        }
-
-
-        public static class StartupAnimation
+        public static class GameStartAnimation
         {
             public static Timer timer = new Timer();
-            public static volatile bool fadeInComplete = false;
-            public static volatile bool progressBarComplete = false;
+            public static class WindowFadeIn
+            {
+                public const double stepping = 0.020;
+                public static readonly int totalFrames = (int)Math.Ceiling(1.0 / stepping); // HARDCODED VALUE! 1.0 represents maximum form opacity value (100%).
+                public static volatile int currentFrame = 0;
+                public static volatile bool complete = false;
+            }
+            public static class ProgressBar
+            {
+                public const double stepping = 10.0;
+                public static readonly int totalFrames = (int)Math.Ceiling(1000.0 / stepping); // HARDCODED VALUE! 1000.0 represents current progress bar maximum value.
+                public static volatile int currentFrame = 0;
+                public static volatile bool complete = false;
+            }
         }
 
 
@@ -122,164 +57,59 @@ namespace EefernalLauncher
         {
             Environment.Exit(0);
         }
-        private void Exit(string message, MessageBoxIcon messageType)
+        private void ExitWithMessage(string message, MessageBoxIcon messageType)
         {
             if (!string.IsNullOrEmpty(message))
             {
-                StartupAnimation.timer.Enabled = false;
+                GameStartAnimation.timer.Enabled = false;
                 MessageBox.Show(message, "Eefernal Launcher", MessageBoxButtons.OK, messageType, MessageBoxDefaultButton.Button1);
             }
                 
-
             Exit();
         }
 
 
-
-
-
-
-        private void Launcher_AnimationTick(object sender, EventArgs e)
-        {
-            double newValue = this.Opacity + 0.025;
-            if (newValue <= 1.0)
-                this.Opacity = newValue;
-            else
-            {
-                this.Opacity = 1.0;
-                StartupAnimation.fadeInComplete = true;
-                StartupAnimation.timer.Tick -= Launcher_AnimationTick;
-            }
-        }
-        private void startupProgressBar_AnimationTick(object sender, EventArgs e)
-        {
-            int newValue = startupProgressBar.Value + 1;
-            if (newValue <= startupProgressBar.Maximum)
-                startupProgressBar.Value = newValue;
-            else
-            {
-                StartupAnimation.progressBarComplete = true;
-                StartupAnimation.timer.Tick -= startupProgressBar_AnimationTick;
-            }
-                
-        }
-
-
-
-
-
-
-#if START_METHOD_DEFAULT
         void StartProcess(string startupTarget, string startupArguments)
         {
-            using (Process newProcess = new Process())
-            {
-                newProcess.StartInfo.FileName = Path.GetFileName(startupTarget);
-                newProcess.StartInfo.WorkingDirectory = Path.GetDirectoryName(startupTarget);
-                newProcess.StartInfo.Arguments = startupArguments;
-                newProcess.StartInfo.UseShellExecute = true;
-
-                try
-                {
-                    newProcess.Start();
-                    if (newProcess.HasExited)
-                    {
-                        Exit("Failed to start process! Process has exited.", MessageBoxIcon.Error);
-                    }
-                }
-                catch (Win32Exception win32Ex)
-                {
-                    Exit($"Failed to start process! WIN32 exception: {win32Ex.NativeErrorCode}", MessageBoxIcon.Error);
-                }
-                catch
-                {
-                    Exit("Failed to start process! Process failed to start.", MessageBoxIcon.Error);
-                }
-            }
-        }
-#endif
+            if (File.Exists(startupTarget) == false)
+                ExitWithMessage($"Failed to start process! Startup target doesn't exist!", MessageBoxIcon.Error);
 
 
-#if START_METHOD_CMD
-        async void StartProcessCMD(string startupTarget, string startupArguments)
-        {
-            string commandLine = $"/c start \"\" \"{startupTarget}\" {startupArguments}";
-            using (Process newProcess = new Process())
-            {
-                newProcess.StartInfo.FileName = "cmd.exe";
-                newProcess.StartInfo.Arguments = commandLine;
-                newProcess.StartInfo.UseShellExecute = false;
-                newProcess.StartInfo.CreateNoWindow = true;
-
-                try
-                {
-                    newProcess.Start();
-                    await Task.Delay(3000);
-
-                    string friendlyExecutableName = Path.GetFileNameWithoutExtension(startupTarget);
-                    Process[] foundProcesses = Process.GetProcessesByName(friendlyExecutableName);
-                    if (foundProcesses.Length == 0)
-                        Exit($"Failed to start process! Process wasn't found running.", MessageBoxIcon.Error);
-                }
-                catch (Win32Exception win32Ex)
-                {
-                    Exit($"Failed to start process! WIN32 exception: {win32Ex.NativeErrorCode}", MessageBoxIcon.Error);
-                }
-                catch
-                {
-                    Exit("Failed to start process! Process failed to start.", MessageBoxIcon.Error);
-                }
-            }
-        }
-#endif
-
-
-#if START_METHOD_POWERSHELL
-        async void StartProcessPowerShell(string startupTarget, string startupArguments)
-        {
-            string commandLine = $"Start-Process -FilePath '{startupTarget}' -ArgumentList '{startupArguments}'";
-            using (Process newProcess = new Process())
-            {
-                newProcess.StartInfo.FileName = "powershell.exe";
-                newProcess.StartInfo.Arguments = $"-NoProfile -Command \"{commandLine}\"";
-                newProcess.StartInfo.UseShellExecute = false;
-                newProcess.StartInfo.CreateNoWindow = true;
-
-                try
-                {
-                    newProcess.Start();
-                    await Task.Delay(3000);
-
-                    string friendlyExecutableName = Path.GetFileNameWithoutExtension(startupTarget);
-                    Process[] foundProcesses = Process.GetProcessesByName(friendlyExecutableName);
-                    if (foundProcesses.Length == 0)
-                        Exit($"Failed to start process! Process wasn't found running.", MessageBoxIcon.Error);
-                }
-                catch (Win32Exception win32Ex)
-                {
-                    Exit($"Failed to start process! WIN32 exception: {win32Ex.NativeErrorCode}", MessageBoxIcon.Error);
-                }
-                catch
-                {
-                    Exit("Failed to start process! Process failed to start.", MessageBoxIcon.Error);
-                }
-            }
-        }
-#endif
-
-
-#if START_METHOD_KERNEL
-        void StartProcessKernel(string startupTarget, string startupArguments)
-        {
+            /* 
+                * Modern applications often rely on relative paths (paths calculated from {workingDirectory} + "..\..").
+                * In order to achive best compatibility and avoid potential issues, we need to resolve working directory
+                * from path to target executable, this path will later be specified when creating a process.
+            */
             string workingDirectory = Path.GetDirectoryName(startupTarget);
-            StringBuilder commandLine = new StringBuilder($"\"{startupTarget}\" {startupArguments}");
+            if (Directory.Exists(workingDirectory) == false)
+                workingDirectory = Environment.CurrentDirectory;
 
-            KERNEL_STARTUPINFO startupInfo = new KERNEL_STARTUPINFO();
-            startupInfo.cb = (uint)Marshal.SizeOf<KERNEL_STARTUPINFO>();
+
+            /*
+                * When constructing a command line, we need to account for scenario where startup arguments wasn't specified.
+                * Interacting with low-level libraries always involve proper understanding and accuracy of actions taken, no extra spaces must be left. 
+            */
+            string command = string.IsNullOrEmpty(startupArguments) ? $"\"{startupTarget}\"" : $"\"{startupTarget}\" {startupArguments}";
+            StringBuilder commandLine = new StringBuilder(command);
+
+
+            /*
+                * Create new instance of Startup Info struct to initialize it with default values.
+                * Parameters of newly created instance can then be adjusted to meet our goals.
+            */
+            KERNEL32.Struct.STARTUPINFO startupInfo = new KERNEL32.Struct.STARTUPINFO();
+            startupInfo.cb = (uint)Marshal.SizeOf<KERNEL32.Struct.STARTUPINFO>();
             startupInfo.dwFlags += 0x00000040; // STARTF_FORCEONFEEDBACK: Indicates that the cursor is in feedback mode for two seconds after CreateProcess is called.
-            KERNEL_PROCESS_INFORMATION procInfo = new KERNEL_PROCESS_INFORMATION();
 
-            bool wasProcessCreated = CreateProcessW
+
+            /*
+                * Create new instance of Process Information struct to initialize it with default values.
+                * This instance will be referenced as output destination for process creation, later on allowing us to read process specific data from it.
+            */
+            KERNEL32.Struct.PROCESS_INFORMATION procInfo = new KERNEL32.Struct.PROCESS_INFORMATION();
+
+
+            bool createProcessResult = KERNEL32.CreateProcessW
             (
                 null,
                 commandLine,
@@ -293,17 +123,75 @@ namespace EefernalLauncher
                 out procInfo
             );
 
-            if (wasProcessCreated == false)
+            if (createProcessResult == false)
             {
                 int win32Error = Marshal.GetLastWin32Error();
-                Exit($"Failed to start process! WIN32 exception: {win32Error}", MessageBoxIcon.Error);
+                ExitWithMessage($"Failed to start process! WIN32 ERROR: {win32Error}.", MessageBoxIcon.Error);
             }
         }
-#endif
 
 
 
 
+
+
+        private void Launcher_AnimationTick(object sender, EventArgs e)
+        {
+            GameStartAnimation.WindowFadeIn.currentFrame++;
+            if (GameStartAnimation.WindowFadeIn.currentFrame > GameStartAnimation.WindowFadeIn.totalFrames)
+            {
+                this.Opacity = 1.0;
+                GameStartAnimation.WindowFadeIn.complete = true;
+                GameStartAnimation.timer.Tick -= Launcher_AnimationTick;
+            }
+            else
+            {
+                /* Calculate normalized progress of the animation as a value between 0.0 (start) and 1.0 (end). */
+                double normalizedProgress = (double)GameStartAnimation.WindowFadeIn.currentFrame / (double)GameStartAnimation.WindowFadeIn.totalFrames;
+
+                /* Quadratic ease-in - slow at start, accelerating over time. */
+                this.Opacity = normalizedProgress * normalizedProgress;
+            }
+        }
+        private void startupProgressBar_AnimationTick(object sender, EventArgs e)
+        {
+            GameStartAnimation.ProgressBar.currentFrame++;
+            if (GameStartAnimation.ProgressBar.currentFrame > GameStartAnimation.ProgressBar.totalFrames)
+            {
+                startupProgressBar.Value = startupProgressBar.Maximum;
+                GameStartAnimation.ProgressBar.complete = true;
+                GameStartAnimation.timer.Tick -= startupProgressBar_AnimationTick;
+            }
+            else
+            {
+                /* Calculate normalized progress of the animation as a value between 0.0 (start) and 1.0 (end). */
+                double normalizedProgress = (double)GameStartAnimation.ProgressBar.currentFrame / (double)GameStartAnimation.ProgressBar.totalFrames;
+
+                /* Quadratic ease-in - slow at start, accelerating over time. */
+                double quadraticEase = normalizedProgress * normalizedProgress;
+
+                /* Scale quadratic ease-in curve to the progress bar maximum value */
+                int newValue = (int)Math.Round(quadraticEase * startupProgressBar.Maximum);
+
+                startupProgressBar.Value = newValue;
+            }
+        }
+
+
+        private void Launcher_StartAnimation()
+        {
+            /*
+                * Timer can only be started once, we would only want to start timer if it's not yet running.
+                * In case to avoid something going terribly wrong, check if it's not already enabled.
+            */
+            if (GameStartAnimation.timer.Enabled == false)
+            {
+                GameStartAnimation.timer.Interval = 1;
+                GameStartAnimation.timer.Tick += Launcher_AnimationTick;
+                GameStartAnimation.timer.Tick += startupProgressBar_AnimationTick;
+                GameStartAnimation.timer.Start();
+            }
+        }
 
 
         public Launcher()
@@ -312,84 +200,86 @@ namespace EefernalLauncher
         }
 
 
-        private void backgroundWorkerExit_DoWork(object sender, System.ComponentModel.DoWorkEventArgs e)
-        {
-            while (StartupAnimation.fadeInComplete == false || StartupAnimation.progressBarComplete == false || StartupData.gameStartAttempted == false)
-            {
-                System.Threading.Thread.Sleep(100);
-            }
-
-            System.Threading.Thread.Sleep(1350);
-            Exit();
-        }
-
-
-
-
         private void Launcher_Load(object sender, EventArgs e)
         {
+            this.TopMost = true;
             this.Icon = Properties.Resources.Icon;
 
-
-            if (File.Exists(StartupData.splashScreenFilePath)) 
-            { 
-                Image backgroundImage = Image.FromFile(StartupData.splashScreenFilePath);
+            if (File.Exists(GameStartData.splashScreenFilePath))
+            {
+                Image backgroundImage = Image.FromFile(GameStartData.splashScreenFilePath);
                 this.BackgroundImage = backgroundImage;
             }
 
-
-            if (File.Exists(StartupData.logoFilePath))
+            if (File.Exists(GameStartData.logoFilePath))
             {
                 startupLogo.Parent = this;
                 startupLogo.BackColor = Color.Transparent;
 
-                Image startupLogoImage = Image.FromFile(StartupData.logoFilePath);
+                Image startupLogoImage = Image.FromFile(GameStartData.logoFilePath);
                 startupLogo.Image = startupLogoImage;
             }
+
+            this.launcherTerminationWorker.RunWorkerAsync();
         }
 
 
         private void Launcher_Shown(object sender, EventArgs e)
         {
-            backgroundWorkerExit.RunWorkerAsync();
+            /* The moment launcher was drawn on screen, start animation sequence. */
+            Launcher_StartAnimation();
 
 
-            StartupAnimation.timer.Interval = 1;
-            StartupAnimation.timer.Tick += Launcher_AnimationTick;
-            StartupAnimation.timer.Tick += startupProgressBar_AnimationTick;
-            StartupAnimation.timer.Start();
+            /*
+                *  In order to make launcher as flexible and as compatible with any game given...
+                *  instead of hardcoding path to game executable, we're reading it from within a text file.
+                *  
+                *  Thefore attempting to start a process, it's important to verify that file exists in first place and that it isn't empty.
+            */
+            if (File.Exists(GameStartData.startupTargetFilePath) == false)
+                ExitWithMessage($"Failed to initialize! File with startup target is missing!\n\n\"{GameStartData.startupTargetFilePath}\"", MessageBoxIcon.Error);
 
-
-            if (!File.Exists(StartupData.startupTargetFilePath))
-                Exit($"Startup target file wasn't found!\n\n\"{StartupData.startupTargetFilePath}\"", MessageBoxIcon.Error);
-
-            string startupTarget = File.ReadAllText(StartupData.startupTargetFilePath);
+            string startupTarget = File.ReadAllText(GameStartData.startupTargetFilePath);
             if (string.IsNullOrEmpty(startupTarget))
-                Exit($"Startup target file is empty!\n\n\"{StartupData.startupTargetFilePath}\"", MessageBoxIcon.Error);
+                ExitWithMessage($"Failed to initialize! File with startup target is empty!\n\n\"{GameStartData.startupTargetFilePath}\"", MessageBoxIcon.Error);
 
-            startupTarget = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, startupTarget);
-            if (!File.Exists(startupTarget))
-                Exit($"Startup target doesn't exist!\n\n\"{startupTarget}\"", MessageBoxIcon.Error);
+            if (File.Exists(startupTarget) == false)
+            {
+                string startupTargetFullPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, startupTarget);
+                if (File.Exists(startupTargetFullPath))
+                    startupTarget = startupTargetFullPath;
+                else
+                    ExitWithMessage($"Failed to initialize! Couldn't locate startup target!\n\n\"{startupTarget}\"\nOR\n\"{startupTargetFullPath}\"", MessageBoxIcon.Error);
+            }
 
 
+            /*
+                *  In order to make launcher as flexible and as compatible with any game given...
+                *  instead of hardcoding command line arguments, we're reading them from within a text file.
+            */
             string startupArguments = string.Empty;
-            if (File.Exists(StartupData.startupArgumentsFilePath))
-                startupArguments = File.ReadAllText(StartupData.startupArgumentsFilePath);
+            if (File.Exists(GameStartData.startupArgumentsFilePath))
+                startupArguments = File.ReadAllText(GameStartData.startupArgumentsFilePath);
 
 
-            this.TopMost = false; // Ensure that user will be able to interact with Windows security pop up.
-#if START_METHOD_DEFAULT
+            /* Starting a new process may lead to an security pop up to appear, we want to ensure user will be able to see & interact with it.  */
+            this.TopMost = false;
+
+
+            /* Attempt starting a new process using data we've obtained. */
             StartProcess(startupTarget, startupArguments);
-#elif START_METHOD_CMD
-            StartProcessCMD(startupTarget, startupArguments);
-#elif START_METHOD_POWERSHELL
-            StartProcessPowerShell(startupTarget, startupArguments);
-#elif START_METHOD_KERNEL
-            StartProcessKernel(startupTarget, startupArguments);
-#else
-#error No startup method specified.
-#endif
-            StartupData.gameStartAttempted = true;
+        }
+
+
+        private void launcherTerminationWorker_DoWork(object sender, System.ComponentModel.DoWorkEventArgs e)
+        {
+            while (GameStartAnimation.WindowFadeIn.complete == false || GameStartAnimation.ProgressBar.complete == false)
+            {
+                Thread.Sleep(10);
+            }
+
+            Thread.Sleep(1500);
+            Exit();
         }
     }
 }
