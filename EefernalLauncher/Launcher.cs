@@ -26,12 +26,13 @@ namespace EefernalLauncher
 
             public readonly static string startupTargetFilePath = Path.Combine(launcherDirectory, @"EefernalFog\StartupTarget.txt");
             public readonly static string startupArgumentsFilePath = Path.Combine(launcherDirectory, @"EefernalFog\StartupArguments.txt");
+            public readonly static string startupDependenciesPath = Path.Combine(launcherDirectory, @"EefernalFog\StartupDependencies.txt");
         }
 
 
         public static class GameStartAnimation
         {
-            public static Timer timer = new Timer();
+            public static readonly Timer timer = new Timer();
             public static class WindowFadeIn
             {
                 public const double stepping = 0.020;
@@ -42,7 +43,7 @@ namespace EefernalLauncher
             public static class ProgressBar
             {
                 public const double stepping = 10.0;
-                public static readonly int totalFrames = (int)Math.Ceiling(1000.0 / stepping); // HARDCODED VALUE! 1000.0 represents current progress bar maximum value.
+                public static readonly int totalFrames = (int)Math.Ceiling(1000.0 / stepping); // HARDCODED VALUE! 1000.0 represents progress bar maximum value.
                 public static volatile int currentFrame = 0;
                 public static volatile bool complete = false;
             }
@@ -249,7 +250,7 @@ namespace EefernalLauncher
                 if (File.Exists(startupTargetFullPath))
                     startupTarget = startupTargetFullPath;
                 else
-                    ExitWithMessage($"Failed to initialize! Couldn't locate startup target!\n\n\"{startupTarget}\"\nOR\n\"{startupTargetFullPath}\"", MessageBoxIcon.Error);
+                    ExitWithMessage($"Failed to initialize! Couldn't locate startup target!\n\n\"{startupTarget}\".\n\nEnsure that game files are in place, they may have been downloaded or unpacked incorrectly.", MessageBoxIcon.Error);
             }
 
 
@@ -260,6 +261,27 @@ namespace EefernalLauncher
             string startupArguments = string.Empty;
             if (File.Exists(GameStartData.startupArgumentsFilePath))
                 startupArguments = File.ReadAllText(GameStartData.startupArgumentsFilePath);
+
+
+            /*
+                *  In order to make launcher as flexible and as compatible with any game given...
+                *  launcher can account for dependencies game wouldn't function without of.
+                *  
+                *  Dependencies in file must be listed in different lines, one dependancy per line.
+            */
+            if (File.Exists(GameStartData.startupDependenciesPath))
+            {
+                string[] startupDependencies = File.ReadAllLines(GameStartData.startupDependenciesPath);
+                foreach (string dependency in startupDependencies)
+                {
+                    if (File.Exists(dependency) == false)
+                    {
+                        string dependencyFullPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, dependency);
+                        if (File.Exists(dependencyFullPath) == false)
+                            ExitWithMessage($"Failed to initialize! Couldn't locate required dependency!\n\n\"{dependency}\".\n\nEnsure that dependency is in place, it may have been removed by your local anti-virus.", MessageBoxIcon.Error);
+                    }
+                }
+            }
 
 
             /* Starting a new process may lead to an security pop up to appear, we want to ensure user will be able to see & interact with it.  */
