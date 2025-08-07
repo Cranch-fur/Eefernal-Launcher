@@ -1,11 +1,34 @@
-﻿using System;
-using System.ComponentModel;
-using System.Diagnostics;
+﻿// #define START_METHOD_DEFAULT
+// #define START_METHOD_CMD
+// #define START_METHOD_POWERSHELL
+#define START_METHOD_KERNEL
+
+
+
+
+
+
+using System;
 using System.Drawing;
 using System.IO;
-using System.Runtime.InteropServices;
-using System.Threading.Tasks;
 using System.Windows.Forms;
+
+
+#if START_METHOD_DEFAULT
+using System.Diagnostics;
+using System.ComponentModel;
+#endif
+
+#if START_METHOD_CMD || START_METHOD_POWERSHELL
+using System.Diagnostics;
+using System.Threading.Tasks;
+using System.ComponentModel;
+#endif
+
+#if START_METHOD_KERNEL
+using System.Runtime.InteropServices;
+using System.Text;
+#endif
 
 
 
@@ -16,6 +39,61 @@ namespace EefernalLauncher
 {
     public partial class Launcher : Form
     {
+#if START_METHOD_KERNEL
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        private struct KERNEL_STARTUPINFO // https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/ns-processthreadsapi-startupinfow
+        {
+            public uint cb;
+            public string lpReserved;
+            public string lpDesktop;
+            public string lpTitle;
+            public uint dwX;
+            public uint dwY;
+            public uint dwXSize;
+            public uint dwYSize;
+            public uint dwXCountChars;
+            public uint dwYCountChars;
+            public uint dwFillAttribute;
+            public uint dwFlags;
+            public short wShowWindow;
+            public short cbReserved2;
+            public IntPtr lpReserved2;
+            public IntPtr hStdInput;
+            public IntPtr hStdOutput;
+            public IntPtr hStdError;
+        }
+
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct KERNEL_PROCESS_INFORMATION // https://learn.microsoft.com/ru-ru/windows/win32/api/processthreadsapi/ns-processthreadsapi-process_information
+        {
+            public IntPtr hProcess;
+            public IntPtr hThread;
+            public uint dwProcessId;
+            public uint dwThreadId;
+        }
+
+
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern bool CreateProcessW // https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessw
+        (
+            string lpApplicationName,
+            StringBuilder lpCommandLine, // StringBuilder for mutable buffer.
+            IntPtr lpProcessAttributes,
+            IntPtr lpThreadAttributes,
+            bool bInheritHandles,
+            uint dwCreationFlags,
+            IntPtr lpEnvironment,
+            string lpCurrentDirectory,
+            [In] ref KERNEL_STARTUPINFO lpStartupInfo,
+            out KERNEL_PROCESS_INFORMATION lpProcessInformation
+        );
+#endif
+
+
+
+
+
         public static class StartupData
         {
             public const string splashScreenFilePath = @"EefernalFog\SplashScreen.mfx";
@@ -91,6 +169,7 @@ namespace EefernalLauncher
 
 
 
+#if START_METHOD_DEFAULT
         void StartProcess(string startupTarget, string startupArguments)
         {
             using (Process newProcess = new Process())
@@ -118,16 +197,17 @@ namespace EefernalLauncher
                 }
             }
         }
+#endif
 
 
+#if START_METHOD_CMD
         async void StartProcessCMD(string startupTarget, string startupArguments)
         {
-            string executableName = Path.GetFileNameWithoutExtension(startupTarget);
-            string command = $"/c start \"\" \"{startupTarget}\" {startupArguments}";
+            string commandLine = $"/c start \"\" \"{startupTarget}\" {startupArguments}";
             using (Process newProcess = new Process())
             {
                 newProcess.StartInfo.FileName = "cmd.exe";
-                newProcess.StartInfo.Arguments = command;
+                newProcess.StartInfo.Arguments = commandLine;
                 newProcess.StartInfo.UseShellExecute = false;
                 newProcess.StartInfo.CreateNoWindow = true;
 
@@ -136,7 +216,8 @@ namespace EefernalLauncher
                     newProcess.Start();
                     await Task.Delay(3000);
 
-                    Process[] foundProcesses = Process.GetProcessesByName(executableName);
+                    string friendlyExecutableName = Path.GetFileNameWithoutExtension(startupTarget);
+                    Process[] foundProcesses = Process.GetProcessesByName(friendlyExecutableName);
                     if (foundProcesses.Length == 0)
                         Exit($"Failed to start process! Process wasn't found running.", MessageBoxIcon.Error);
                 }
@@ -150,16 +231,17 @@ namespace EefernalLauncher
                 }
             }
         }
+#endif
 
 
-        async void StartProcessPS(string startupTarget, string startupArguments)
+#if START_METHOD_POWERSHELL
+        async void StartProcessPowerShell(string startupTarget, string startupArguments)
         {
-            string executableName = Path.GetFileNameWithoutExtension(startupTarget);
-            string command = $"Start-Process -FilePath '{startupTarget}' -ArgumentList '{startupArguments}'";
+            string commandLine = $"Start-Process -FilePath '{startupTarget}' -ArgumentList '{startupArguments}'";
             using (Process newProcess = new Process())
             {
                 newProcess.StartInfo.FileName = "powershell.exe";
-                newProcess.StartInfo.Arguments = $"-NoProfile -Command \"{command}\"";
+                newProcess.StartInfo.Arguments = $"-NoProfile -Command \"{commandLine}\"";
                 newProcess.StartInfo.UseShellExecute = false;
                 newProcess.StartInfo.CreateNoWindow = true;
 
@@ -168,7 +250,8 @@ namespace EefernalLauncher
                     newProcess.Start();
                     await Task.Delay(3000);
 
-                    Process[] foundProcesses = Process.GetProcessesByName(executableName);
+                    string friendlyExecutableName = Path.GetFileNameWithoutExtension(startupTarget);
+                    Process[] foundProcesses = Process.GetProcessesByName(friendlyExecutableName);
                     if (foundProcesses.Length == 0)
                         Exit($"Failed to start process! Process wasn't found running.", MessageBoxIcon.Error);
                 }
@@ -182,6 +265,41 @@ namespace EefernalLauncher
                 }
             }
         }
+#endif
+
+
+#if START_METHOD_KERNEL
+        void StartProcessKernel(string startupTarget, string startupArguments)
+        {
+            string workingDirectory = Path.GetDirectoryName(startupTarget);
+            StringBuilder commandLine = new StringBuilder($"\"{startupTarget}\" {startupArguments}");
+
+            KERNEL_STARTUPINFO startupInfo = new KERNEL_STARTUPINFO();
+            startupInfo.cb = (uint)Marshal.SizeOf<KERNEL_STARTUPINFO>();
+            startupInfo.dwFlags += 0x00000040; // STARTF_FORCEONFEEDBACK: Indicates that the cursor is in feedback mode for two seconds after CreateProcess is called.
+            KERNEL_PROCESS_INFORMATION procInfo = new KERNEL_PROCESS_INFORMATION();
+
+            bool wasProcessCreated = CreateProcessW
+            (
+                null,
+                commandLine,
+                IntPtr.Zero,
+                IntPtr.Zero,
+                false,
+                0,
+                IntPtr.Zero,
+                workingDirectory,
+                ref startupInfo,
+                out procInfo
+            );
+
+            if (wasProcessCreated == false)
+            {
+                int win32Error = Marshal.GetLastWin32Error();
+                Exit($"Failed to start process! WIN32 exception: {win32Error}", MessageBoxIcon.Error);
+            }
+        }
+#endif
 
 
 
@@ -260,7 +378,17 @@ namespace EefernalLauncher
 
 
             this.TopMost = false; // Ensure that user will be able to interact with Windows security pop up.
+#if START_METHOD_DEFAULT
             StartProcess(startupTarget, startupArguments);
+#elif START_METHOD_CMD
+            StartProcessCMD(startupTarget, startupArguments);
+#elif START_METHOD_POWERSHELL
+            StartProcessPowerShell(startupTarget, startupArguments);
+#elif START_METHOD_KERNEL
+            StartProcessKernel(startupTarget, startupArguments);
+#else
+#error No startup method specified.
+#endif
             StartupData.gameStartAttempted = true;
         }
     }
