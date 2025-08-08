@@ -90,7 +90,9 @@ namespace EefernalLauncher
                 * When constructing a command line, we need to account for scenario where startup arguments wasn't specified.
                 * Interacting with low-level libraries always involve proper understanding and accuracy of actions taken, no extra spaces must be left. 
             */
-            string command = string.IsNullOrEmpty(startupArguments) ? $"\"{startupTarget}\"" : $"\"{startupTarget}\" {startupArguments}";
+            string command = string.IsNullOrEmpty(startupArguments) 
+                                                                    ? $"\"{startupTarget}\"" 
+                                                                    : $"\"{startupTarget}\" {startupArguments}";
             StringBuilder commandLine = new StringBuilder(command);
 
 
